@@ -1,0 +1,81 @@
+# schema.yml
+# PURPOSE: Data quality tests for all dbt models
+# dbt runs these tests automatically after every transformation
+# If any test fails, dbt alerts you — pipeline stops before bad data reaches analysts
+# In real work: same pattern — automated tests catch bad data before business sees it
+
+version: 2
+
+sources:
+  - name: nyc_property_raw
+    description: "Raw NYC property sales data loaded by Python extract_load script"
+    database: NYC_PROPERTY_RAW
+    schema: PUBLIC
+    tables:
+      - name: RAW_PROPERTY_SALES
+        description: "Exact copy of NYC Open Data property sales — no transformations applied"
+        columns:
+          - name: BOROUGH
+            description: "Borough code 1-5"
+            tests:
+              - not_null
+          - name: SALE_PRICE
+            description: "Raw sale price as text — may contain $ and commas"
+          - name: SALE_DATE
+            description: "Raw sale date as text"
+
+models:
+  - name: stg_property_sales
+    description: "Cleaned and standardized NYC property sales data. Removes bad rows, casts data types, strips whitespace."
+    columns:
+      - name: borough_id
+        description: "Borough code as integer — 1=Manhattan 2=Bronx 3=Brooklyn 4=Queens 5=Staten Island"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]
+
+      - name: neighborhood
+        description: "Neighborhood name — cleaned and trimmed"
+        tests:
+          - not_null
+
+      - name: sale_price
+        description: "Sale price as integer — stripped of $ and commas. NULL for invalid values."
+
+      - name: sale_date
+        description: "Sale date as proper DATE type"
+        tests:
+          - not_null
+
+      - name: zip_code
+        description: "Property zip code"
+
+  - name: mart_sales_summary
+    description: "Business-ready aggregated sales by borough, neighborhood, and building class. This is what dashboards query."
+    columns:
+      - name: borough_name
+        description: "Human readable borough name — Manhattan, Bronx, Brooklyn, Queens, Staten Island"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island', 'Unknown']
+
+      - name: neighborhood
+        description: "Neighborhood name"
+        tests:
+          - not_null
+
+      - name: total_sales
+        description: "Count of property sales for this borough, neighborhood, building class, and time period"
+        tests:
+          - not_null
+
+      - name: avg_sale_price
+        description: "Average sale price — only includes valid sales above $0"
+
+      - name: median_sale_price
+        description: "Median sale price — more reliable than average for skewed real estate data"
+
+      - name: avg_price_per_sqft
+        description: "Average price per square foot — key real estate metric"
